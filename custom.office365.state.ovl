@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ValueLookup id="custom.office365.state" desiredValue="0" undefinedState="Warning" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="PaeValueLookup.xsd">
+    <Lookups>
+        <SingleInt state="Ok" value="0">Service Operational</SingleInt>
+        <SingleInt state="Error" value="1">Canceled</SingleInt>
+        <SingleInt state="Warning" value="2">Completed</SingleInt>
+        <SingleInt state="None" value="3">In Progress</SingleInt>
+        <SingleInt state="None" value="4">Scheduled</SingleInt>
+        <SingleInt state="Warning" value="5">Extended Recovery</SingleInt>
+        <SingleInt state="Error" value="6">Service Interruption</SingleInt>
+        <SingleInt state="Warning" value="7">Service Degradation</SingleInt>
+        <SingleInt state="Ok" value="8">Post Incident Review Published</SingleInt>
+        <SingleInt state="Ok" value="9">Service Restored</SingleInt>
+        <SingleInt state="Warning" value="10">Verifying Service</SingleInt>
+        <SingleInt state="Warning" value="11">Restoring Service</SingleInt>
+        <SingleInt state="Warning" value="12">Investigating</SingleInt>
+    </Lookups>
+</ValueLookup>
