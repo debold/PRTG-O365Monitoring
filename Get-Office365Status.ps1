@@ -91,9 +91,7 @@ if ($PSVersionTable.PSVersion.Major -ge 3) {
         client_id = $ClientID;
         client_secret = $ClientSecret
     }
-
     $OauthUri = "{0}/{1}/oauth2/token?api-version=1.0" -f $LoginURL, $TenantIdentifier
-
     try {
         $Oauth = Invoke-RestMethod -Method Post -Uri $OauthUri -Body $OauthBody
     } catch {
@@ -155,4 +153,3 @@ $XmlWriter.Flush()
 $StringWriter.Flush() 
 
 Write-Output $StringWriter.ToString()
-Start-sleep 0 # For Vscode debugging only 
