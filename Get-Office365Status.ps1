@@ -24,8 +24,10 @@ For the lookup in PRTG to work you need to copy the file "custom.office365.value
 (Setup/System Administration/Administrative Tools -> Load Lookups).
 
 Author:  Marc Debold
-Version: 1.1
+Version: 1.2
 Version History:
+    1.2  31.10.2016  Code tidy
+                     Changed error handling to function
     1.1  06.08.2016  Corrected naming mismatch in ovl file (thanks to playordie)
                      Added -UseBasicParsing Parameter to Invoke-WebRequest to bypass uninitialized Internet Explorer (thanks to playordie)
     1.0  22.07.2016  Initial release
@@ -50,9 +52,6 @@ http://www.team-debold.de/2016/07/22/prtg-office-365-status-ueberwachen/
 $Resource = "https://manage.office.com"
 $LoginURL = "https://login.windows.net"
 
-$IsAuthenticated = $false
-$DataRetrieved = $false
-
 $ReturnCodes = @{
     ServiceOperational = 0;
     Canceled = 1;
@@ -67,6 +66,19 @@ $ReturnCodes = @{
     VerifyingService = 10;
     RestoringService = 11;
     Investigating = 12
+}
+
+<# Function to raise error in PRTG style and stop script #>
+function New-PrtgError {
+    [CmdletBinding()] param(
+        [Parameter(Position=0)][string] $ErrorText
+    )
+
+    Write-Host "<prtg>
+    <error>1</error>
+    <text>$ErrorText</text>
+</prtg>"
+    Exit
 }
 
 <# Function Invoke-RestMethod requires Power Shell v3 or higher #>
@@ -84,28 +96,23 @@ if ($PSVersionTable.PSVersion.Major -ge 3) {
 
     try {
         $Oauth = Invoke-RestMethod -Method Post -Uri $OauthUri -Body $OauthBody
-        $IsAuthenticated = $true
     } catch {
-        $MyError = "Error authenticating"
+        New-PrtgError -ErrorText "Error authenticating"
     }
 
     <# Get service status via REST API #>
     $Operation = "CurrentStatus"
     $ServiceUri = "https://manage.office.com/api/v1.0/{0}/ServiceComms/{1}" -f $TenantIdentifier, $Operation
     $headerParams  = @{
-        Authorization = "{0} {1}" -f $oauth.token_type,$oauth.access_token
+        Authorization = "{0} {1}" -f $oauth.token_type, $oauth.access_token
     }
-
-    if ($IsAuthenticated) {
-        try {
-            $Data = Invoke-WebRequest -Headers $headerParams -Uri $ServiceUri -UseBasicParsing | ConvertFrom-Json
-            $DataRetrieved = $true
-        } catch {
-            $MyError = "Error retrieving data"
-        }
+    try {
+        $Data = Invoke-WebRequest -Headers $headerParams -Uri $ServiceUri -UseBasicParsing | ConvertFrom-Json
+    } catch {
+        New-PrtgError -ErrorText "Error retrieving data"
     }
 } else {
-    $MyError = "PowerShell Version 3.0 or higher required on probe"
+    New-PrtgError -ErrorText "PowerShell Version 3.0 or higher required on probe"
 }
 
 <# Create output for PRTG #>
@@ -113,40 +120,28 @@ $XmlDocument = New-Object System.XML.XMLDocument
 $XmlRoot = $XmlDocument.CreateElement("prtg")
 $XmlDocument.appendChild($XmlRoot) | Out-Null
 
-if ($DataRetrieved) {
-    foreach ($Item in $Data.value) {
-        $XmlResult = $XmlRoot.appendChild($XmlDocument.CreateElement("result"))
-
-        $XmlKey = $XmlDocument.CreateElement("channel")
-        $XmlResult.AppendChild($XmlKey) | Out-Null
-
-        $XmlValue = $XmlDocument.CreateTextNode($Item.WorkloadDisplayName)
-        $XmlKey.AppendChild($XmlValue) | Out-Null
-
-        $XmlKey = $XmlDocument.CreateElement("value")
-        $XmlResult.AppendChild($XmlKey) | Out-Null
-
-        $XmlValue = $XmlDocument.CreateTextNode($ReturnCodes.($Item.Status))
-        $XmlKey.AppendChild($XmlValue) | Out-Null
-
-        $XmlKey = $XmlDocument.CreateElement("ValueLookup")
-        $XmlResult.AppendChild($XmlKey) | Out-Null
-
-        $XmlValue = $XmlDocument.CreateTextNode("custom.office365.state")
-        $XmlKey.AppendChild($XmlValue) | Out-Null
-    }
-} else {
-    $XmlError = $XmlDocument.CreateElement("error")
-    $XmlRoot.AppendChild($XmlError) | Out-Null
-
-    $XmlErrorValue = $XmlDocument.CreateTextNode(1)
-    $XmlError.AppendChild($XmlErrorValue) | Out-Null
-
-    $XmlText = $XmlDocument.CreateElement("Text")
-    $XmlRoot.AppendChild($XmlText) | Out-Null
-
-    $XmlTextValue = $XmlDocument.CreateTextNode($MyError)
-    $XmlText.AppendChild($XmlTextValue) | Out-Null
+foreach ($Item in $Data.value) {
+    $XmlResult = $XmlRoot.appendChild(
+        $XmlDocument.CreateElement("result")
+    )
+    # Channel: WorkloadDisplayName
+    $XmlKey = $XmlDocument.CreateElement("channel")
+    $XmlKey.AppendChild(
+        $XmlDocument.CreateTextNode($Item.WorkloadDisplayName)
+    ) | Out-Null
+    $XmlResult.AppendChild($XmlKey) | Out-Null
+    # Value: Itemstatus
+    $XmlKey = $XmlDocument.CreateElement("value")
+    $XmlKey.AppendChild(
+        $XmlDocument.CreateTextNode($ReturnCodes.($Item.Status))
+    ) | Out-Null
+    $XmlResult.AppendChild($XmlKey) | Out-Null
+    # ValueLookup: custom.office365.state
+    $XmlKey = $XmlDocument.CreateElement("ValueLookup")
+    $XmlKey.AppendChild(
+        $XmlDocument.CreateTextNode("custom.office365.state")
+    ) | Out-Null
+    $XmlResult.AppendChild($XmlKey) | Out-Null
 }
 
 <# Format XML output #>
@@ -159,4 +154,5 @@ $XmlDocument.WriteContentTo($XmlWriter)
 $XmlWriter.Flush() 
 $StringWriter.Flush() 
 
-Return $StringWriter.ToString() 
+Write-Output $StringWriter.ToString()
+Start-sleep 0 # For Vscode debugging only 
