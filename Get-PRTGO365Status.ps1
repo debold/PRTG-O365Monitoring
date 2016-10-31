@@ -3,7 +3,7 @@
 Retrieves current service information from Office 365 tenant in PRTG compatible format
 
 .DESCRIPTION
-The Get-Office365Status.ps1 uses Microsofts REST api to get the current health status of your Office 365 tenant. The XML output can be used as PRTG custom sensor.
+The Get-PRTGO365Status.ps1 uses Microsofts REST api to get the current health status of your Office 365 tenant. The XML output can be used as PRTG custom sensor.
 
 .PARAMETER ClientID 
 Represents the ClientId that is used to connect to your Office 365 tenant. See NOTES section for more details.
@@ -16,7 +16,7 @@ Represents the tenant to be monitored. Not the tenant name used in your Office 3
 
 .EXAMPLE
 Retrieves Office 365 health information for specified tenant.
-Get-Office365Status.ps1 -ClientId "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" -ClientSecret "StrongPasswordFromAzureActiveDirectory" -TenantIdentifier "ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj"
+Get-PRTGO365Status.ps1 -ClientId "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" -ClientSecret "StrongPasswordFromAzureActiveDirectory" -TenantIdentifier "ffffffff-gggg-hhhh-iiii-jjjjjjjjjjjj"
 
 .NOTES
 Your tenant needs to be prepared to access the health information. Detailed configuration guidance can be found under http://www.team-debold.de/2016/07/22/prtg-office-365-status-ueberwachen/
@@ -28,6 +28,8 @@ Version: 1.2
 Version History:
     1.2  31.10.2016  Code tidy
                      Changed error handling to function
+                     Changed script name
+                     Changed XML output
     1.1  06.08.2016  Corrected naming mismatch in ovl file (thanks to playordie)
                      Added -UseBasicParsing Parameter to Invoke-WebRequest to bypass uninitialized Internet Explorer (thanks to playordie)
     1.0  22.07.2016  Initial release
@@ -74,11 +76,48 @@ function New-PrtgError {
         [Parameter(Position=0)][string] $ErrorText
     )
 
-    Write-Host "<prtg>
-    <error>1</error>
-    <text>$ErrorText</text>
-</prtg>"
+    Write-Host "<PRTG>
+    <Error>1</Error>
+    <Text>$ErrorText</Text>
+</PRTG>"
     Exit
+}
+
+function Out-Prtg {
+    [CmdletBinding()] param(
+        [Parameter(Position=0, Mandatory=$true, ValueFromPipeline=$true)][array] $MonitoringData
+    )
+    # Create output for PRTG
+    $XmlDocument = New-Object System.XML.XMLDocument
+    $XmlRoot = $XmlDocument.CreateElement("prtg")
+    $XmlDocument.appendChild($XmlRoot) | Out-Null
+    # Cycle through outer array
+    foreach ($Result in $MonitoringData) {
+        # Create result-node
+        $XmlResult = $XmlRoot.appendChild(
+            $XmlDocument.CreateElement("result")
+        )
+        # Cycle though inner hashtable
+        $Result.GetEnumerator() | ForEach-Object {
+            # Use key of hashtable as XML element
+            $XmlKey = $XmlDocument.CreateElement($_.key)
+            $XmlKey.AppendChild(
+                # Use value of hashtable as XML textnode
+                $XmlDocument.CreateTextNode($_.value)    
+            ) | Out-Null
+            $XmlResult.AppendChild($XmlKey) | Out-Null
+        }
+    }
+    # Format XML output
+    $StringWriter = New-Object System.IO.StringWriter 
+    $XmlWriter = New-Object System.XMl.XmlTextWriter $StringWriter 
+    $XmlWriter.Formatting = "indented"
+    $XmlWriter.Indentation = 1
+    $XmlWriter.IndentChar = "`t" 
+    $XmlDocument.WriteContentTo($XmlWriter) 
+    $XmlWriter.Flush() 
+    $StringWriter.Flush() 
+    Return $StringWriter.ToString() 
 }
 
 <# Function Invoke-RestMethod requires Power Shell v3 or higher #>
@@ -113,43 +152,14 @@ if ($PSVersionTable.PSVersion.Major -ge 3) {
     New-PrtgError -ErrorText "PowerShell Version 3.0 or higher required on probe"
 }
 
-<# Create output for PRTG #>
-$XmlDocument = New-Object System.XML.XMLDocument
-$XmlRoot = $XmlDocument.CreateElement("prtg")
-$XmlDocument.appendChild($XmlRoot) | Out-Null
-
+$Result = @()
 foreach ($Item in $Data.value) {
-    $XmlResult = $XmlRoot.appendChild(
-        $XmlDocument.CreateElement("result")
-    )
-    # Channel: WorkloadDisplayName
-    $XmlKey = $XmlDocument.CreateElement("channel")
-    $XmlKey.AppendChild(
-        $XmlDocument.CreateTextNode($Item.WorkloadDisplayName)
-    ) | Out-Null
-    $XmlResult.AppendChild($XmlKey) | Out-Null
-    # Value: Itemstatus
-    $XmlKey = $XmlDocument.CreateElement("value")
-    $XmlKey.AppendChild(
-        $XmlDocument.CreateTextNode($ReturnCodes.($Item.Status))
-    ) | Out-Null
-    $XmlResult.AppendChild($XmlKey) | Out-Null
-    # ValueLookup: custom.office365.state
-    $XmlKey = $XmlDocument.CreateElement("ValueLookup")
-    $XmlKey.AppendChild(
-        $XmlDocument.CreateTextNode("custom.office365.state")
-    ) | Out-Null
-    $XmlResult.AppendChild($XmlKey) | Out-Null
+    $Result += @{
+        Channel = $Item.WorkloadDisplayName;
+        Value = [int]$ReturnCodes.($Item.Status);
+        ValueLookup = "custom.office365.state"
+    }
 }
 
-<# Format XML output #>
-$StringWriter = New-Object System.IO.StringWriter 
-$XmlWriter = New-Object System.XMl.XmlTextWriter $StringWriter 
-$XmlWriter.Formatting = “indented” 
-$XmlWriter.Indentation = 1
-$XmlWriter.IndentChar = "`t" 
-$XmlDocument.WriteContentTo($XmlWriter) 
-$XmlWriter.Flush() 
-$StringWriter.Flush() 
-
-Write-Output $StringWriter.ToString()
+Out-Prtg -MonitoringData $Result
+sleep 0 # VScode debug only
