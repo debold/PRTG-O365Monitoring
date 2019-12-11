@@ -24,8 +24,9 @@ For the lookup in PRTG to work you need to copy the file "custom.office365.value
 (Setup/System Administration/Administrative Tools -> Load Lookups).
 
 Author:  Marc Debold
-Version: 1.2
+Version: 1.3
 Version History:
+    1.3  11.12.2019  Added output of detailed error messages
     1.2  31.10.2016  Code tidy
                      Changed error handling to function
                      Changed script name
@@ -134,7 +135,7 @@ if ($PSVersionTable.PSVersion.Major -ge 3) {
     try {
         $Oauth = Invoke-RestMethod -Method Post -Uri $OauthUri -Body $OauthBody
     } catch {
-        New-PrtgError -ErrorText "Error authenticating"
+        New-PrtgError -ErrorText "Error authenticating ($($_.Exception.Message))"
     }
 
     <# Get service status via REST API #>
@@ -146,7 +147,7 @@ if ($PSVersionTable.PSVersion.Major -ge 3) {
     try {
         $Data = Invoke-WebRequest -Headers $headerParams -Uri $ServiceUri -UseBasicParsing | ConvertFrom-Json
     } catch {
-        New-PrtgError -ErrorText "Error retrieving data"
+        New-PrtgError -ErrorText "Error retrieving data ($($_.Exception.Message))"
     }
 } else {
     New-PrtgError -ErrorText "PowerShell Version 3.0 or higher required on probe"
