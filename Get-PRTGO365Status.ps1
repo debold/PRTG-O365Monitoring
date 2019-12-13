@@ -24,8 +24,9 @@ For the lookup in PRTG to work you need to copy the file "custom.office365.value
 (Setup/System Administration/Administrative Tools -> Load Lookups).
 
 Author:  Marc Debold
-Version: 1.3
+Version: 1.4
 Version History:
+    1.4  13.12.2019  Enforce TLS 1.2 for older PowerShell versions
     1.3  11.12.2019  Added output of detailed error messages
     1.2  31.10.2016  Code tidy
                      Changed error handling to function
@@ -124,6 +125,11 @@ function Out-Prtg {
 <# Function Invoke-RestMethod requires Power Shell v3 or higher #>
 if ($PSVersionTable.PSVersion.Major -ge 3) {
 
+    # Enforce TLS 1.2 for PowerShell < 5
+    if ($PSVersionTable.PSVersion.Major -lt 5) {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12        
+    }
+    
     <# Authenticate against Azure AD and retrieve OAuth token #>
     $OauthBody = @{
         grant_type = "client_credentials";
@@ -163,4 +169,3 @@ foreach ($Item in $Data.value) {
 }
 
 Out-Prtg -MonitoringData $Result
-sleep 0 # VScode debug only
