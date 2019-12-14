@@ -159,6 +159,7 @@ if ($PSVersionTable.PSVersion.Major -ge 3) {
     New-PrtgError -ErrorText "PowerShell Version 3.0 or higher required on probe"
 }
 
+<# Prepare result for xml output #>
 $Result = @()
 foreach ($Item in $Data.value) {
     $Result += @{
@@ -168,4 +169,5 @@ foreach ($Item in $Data.value) {
     }
 }
 
+<# Build XML and write it to the console for PRTG #>
 Out-Prtg -MonitoringData $Result
