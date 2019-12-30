@@ -125,11 +125,9 @@ function Out-Prtg {
 <# Function Invoke-RestMethod requires Power Shell v3 or higher #>
 if ($PSVersionTable.PSVersion.Major -ge 3) {
 
-    # Enforce TLS 1.2 for PowerShell < 5
-    if ($PSVersionTable.PSVersion.Major -lt 5) {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12        
-    }
-    
+    # Enforce TLS 1.2
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
     <# Authenticate against Azure AD and retrieve OAuth token #>
     $OauthBody = @{
         grant_type = "client_credentials";
